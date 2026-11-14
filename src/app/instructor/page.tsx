@@ -2,31 +2,39 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   BookOpen,
   Users,
-  Wallet,
-  Star,
   ArrowUpRight,
   Plus,
-  MoreHorizontal,
   ChevronRight,
-  TrendingUp,
   PlayCircle,
   CheckCircle2,
-  ChartNoAxesCombined,
   ShieldCheck,
+  FileText,
+  Clock3,
+  RefreshCw,
+  AlertCircle,
+  GraduationCap,
 } from "lucide-react";
 
-const API_URL =
+// Set NEXT_PUBLIC_API_URL to your backend base URL,
+// without /api. Example: https://your-backend.onrender.com
+const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://backend-dlearning.onrender.com/api";
+  "https://decent-learning-bacend.onrender.com"
+).replace(/\/+$/, "");
+
+const API_URL = API_BASE.endsWith("/api")
+  ? API_BASE
+  : `${API_BASE}/api`;
 
 type InstructorProfile = {
   id?: string;
+  _id?: string;
   fullName: string;
   email: string;
   role: string;
@@ -34,195 +42,55 @@ type InstructorProfile = {
   isVerified?: boolean;
 };
 
-const stats = [
-  {
-    title: "Total Courses",
-    value: "12",
-    change: "+2 this month",
-    icon: BookOpen,
-    color: "bg-blue-50 text-[#0A66EC]",
-  },
-  {
-    title: "Total Students",
-    value: "1,248",
-    change: "+12.8% this month",
-    icon: Users,
-    color: "bg-indigo-50 text-indigo-600",
-  },
-  {
-    title: "Total Earnings",
-    value: "₦485,000",
-    change: "+8.5% this month",
-    icon: Wallet,
-    color: "bg-emerald-50 text-emerald-600",
-  },
-  {
-    title: "Average Rating",
-    value: "4.8",
-    change: "From 320 reviews",
-    icon: Star,
-    color: "bg-amber-50 text-amber-500",
-  },
-];
+type Course = {
+  _id: string;
+  title: string;
+  slug: string;
+  description?: string;
+  category: string;
+  level: string;
+  image?: string;
+  instructor?: string;
+  duration?: string;
+  lessons?: {
+    title: string;
+    description?: string;
+    videoUrl?: string;
+  }[];
+  isPublished: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
-const courses = [
-  {
-    id: 1,
-    title: "Complete Frontend Development",
-    category: "WEB DEVELOPMENT",
-    image:
-      "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=700",
-    students: 420,
-    lessons: 36,
-    progress: 78,
-    status: "Published",
-    earnings: "₦185,000",
-  },
-  {
-    id: 2,
-    title: "Blockchain Development Fundamentals",
-    category: "BLOCKCHAIN",
-    image:
-      "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=700",
-    students: 315,
-    lessons: 28,
-    progress: 65,
-    status: "Published",
-    earnings: "₦120,000",
-  },
-  {
-    id: 3,
-    title: "Solidity Smart Contract Development",
-    category: "WEB3",
-    image:
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=700",
-    students: 208,
-    lessons: 24,
-    progress: 45,
-    status: "Published",
-    earnings: "₦95,000",
-  },
-];
+type ApiResponse<T> = {
+  success: boolean;
+  message?: string;
+  data?: T;
+  user?: T;
+  profile?: T;
+  count?: number;
+};
 
-const enrollments = [
-  {
-    name: "Daniel Johnson",
-    email: "daniel@example.com",
-    course: "Frontend Development",
-    date: "Today",
-    initials: "DJ",
-    color: "bg-blue-100 text-blue-600",
-  },
-  {
-    name: "Sarah Williams",
-    email: "sarah@example.com",
-    course: "Blockchain Fundamentals",
-    date: "Yesterday",
-    initials: "SW",
-    color: "bg-purple-100 text-purple-600",
-  },
-  {
-    name: "Michael Brown",
-    email: "michael@example.com",
-    course: "Solidity Development",
-    date: "2 days ago",
-    initials: "MB",
-    color: "bg-amber-100 text-amber-600",
-  },
-  {
-    name: "Esther David",
-    email: "esther@example.com",
-    course: "Frontend Development",
-    date: "3 days ago",
-    initials: "ED",
-    color: "bg-emerald-100 text-emerald-600",
-  },
-];
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : "Something went wrong. Please try again.";
+}
 
-const chartData = [
-  { month: "Jan", value: 35 },
-  { month: "Feb", value: 48 },
-  { month: "Mar", value: 40 },
-  { month: "Apr", value: 62 },
-  { month: "May", value: 55 },
-  { month: "Jun", value: 78 },
-  { month: "Jul", value: 68 },
-  { month: "Aug", value: 90 },
-  { month: "Sep", value: 72 },
-  { month: "Oct", value: 96 },
-  { month: "Nov", value: 82 },
-  { month: "Dec", value: 100 },
-];
+function formatDate(date?: string): string {
+  if (!date) return "Recently created";
 
-function EarningsChart() {
-  const points = chartData
-    .map((item, index) => {
-      const x = 35 + index * 48;
-      const y = 170 - item.value * 1.35;
+  const parsed = new Date(date);
 
-      return `${x},${y}`;
-    })
-    .join(" ");
+  if (Number.isNaN(parsed.getTime())) {
+    return "Recently created";
+  }
 
-  return (
-    <div className="mt-5 w-full overflow-hidden">
-      <svg
-        viewBox="0 0 600 230"
-        className="w-full"
-        role="img"
-        aria-label="Instructor earnings performance chart"
-      >
-        {[35, 75, 115, 155, 195].map((y) => (
-          <line
-            key={y}
-            x1="25"
-            y1={y}
-            x2="575"
-            y2={y}
-            stroke="#E8EEF7"
-            strokeDasharray="4 5"
-          />
-        ))}
-
-        <polyline
-          points={points}
-          fill="none"
-          stroke="#0A66EC"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {chartData.map((item, index) => {
-          const x = 35 + index * 48;
-          const y = 170 - item.value * 1.35;
-
-          return (
-            <g key={item.month}>
-              <circle
-                cx={x}
-                cy={y}
-                r="4"
-                fill="#0A66EC"
-                stroke="white"
-                strokeWidth="2"
-              />
-
-              <text
-                x={x}
-                y="220"
-                textAnchor="middle"
-                fontSize="11"
-                fill="#94A3B8"
-              >
-                {item.month}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
+  return parsed.toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function InstructorPage() {
@@ -231,109 +99,181 @@ export default function InstructorPage() {
   const [instructor, setInstructor] =
     useState<InstructorProfile | null>(null);
 
+  const [courses, setCourses] = useState<Course[]>([]);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // LOAD LOGGED-IN INSTRUCTOR
-  useEffect(() => {
-    let isMounted = true;
+  const loadDashboard = async () => {
+    const token = localStorage.getItem("token");
 
-    const loadInstructorProfile = async () => {
-      const token = localStorage.getItem("token");
-      const savedUser = localStorage.getItem("user");
+    if (!token) {
+      router.replace("/");
+      return;
+    }
 
-      if (!token) {
-        router.replace("/");
-        return;
-      }
+    setError("");
+    setProfileLoading(true);
+    setCoursesLoading(true);
 
-      // Load saved user information first
-      if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
+    try {
+      // =====================================
+      // LOAD REAL INSTRUCTOR PROFILE
+      // =====================================
 
-          if (parsedUser.role !== "instructor") {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            router.replace("/");
-            return;
-          }
-
-          if (isMounted) {
-            setInstructor(parsedUser);
-          }
-        } catch {
-          localStorage.removeItem("user");
-        }
-      }
-
-      try {
-        const response = await fetch(`${API_URL}/auth/profile`, {
+      const profileResponse = await fetch(
+        `${API_URL}/auth/profile`,
+        {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           cache: "no-store",
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            router.replace("/");
-          }
-
-          return;
         }
+      );
 
-        // Supports either { user: ... } or { profile: ... }
-        const profile = data.user ?? data.profile ?? data;
+      const profileResult: ApiResponse<InstructorProfile> =
+        await profileResponse.json();
 
-        if (profile.role !== "instructor") {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-          router.replace("/");
-          return;
-        }
-
-        if (isMounted) {
-          setInstructor(profile);
-          localStorage.setItem("user", JSON.stringify(profile));
-        }
-      } catch (error) {
-        console.error("Unable to load instructor profile:", error);
-      } finally {
-        if (isMounted) {
-          setProfileLoading(false);
-        }
+      if (
+        profileResponse.status === 401 ||
+        profileResponse.status === 403
+      ) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        router.replace("/");
+        return;
       }
+
+      if (!profileResponse.ok || !profileResult.success) {
+        throw new Error(
+          profileResult.message || "Unable to load your profile."
+        );
+      }
+
+      const profile =
+        profileResult.user ??
+        profileResult.profile ??
+        profileResult.data;
+
+      if (!profile || profile.role !== "instructor") {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        router.replace("/");
+        return;
+      }
+
+      setInstructor(profile);
+      localStorage.setItem("user", JSON.stringify(profile));
+      setProfileLoading(false);
+
+      // =====================================
+      // LOAD ONLY THIS INSTRUCTOR'S COURSES
+      // =====================================
+
+      const coursesResponse = await fetch(
+        `${API_URL}/courses/my-courses`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        }
+      );
+
+      const coursesResult: ApiResponse<Course[]> =
+        await coursesResponse.json();
+
+      if (
+        coursesResponse.status === 401 ||
+        coursesResponse.status === 403
+      ) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        router.replace("/");
+        return;
+      }
+
+      if (!coursesResponse.ok || !coursesResult.success) {
+        throw new Error(
+          coursesResult.message || "Unable to load your courses."
+        );
+      }
+
+      setCourses(
+        Array.isArray(coursesResult.data)
+          ? coursesResult.data
+          : []
+      );
+    } catch (err) {
+      console.error("Instructor dashboard error:", err);
+      setError(getErrorMessage(err));
+    } finally {
+      setProfileLoading(false);
+      setCoursesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDashboard();
+    // loadDashboard is intentionally called once when the page mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // =====================================
+  // REAL COURSE STATISTICS
+  // =====================================
+
+  const statistics = useMemo(() => {
+    const publishedCourses = courses.filter(
+      (course) => course.isPublished
+    ).length;
+
+    const draftCourses = courses.filter(
+      (course) => !course.isPublished
+    ).length;
+
+    const totalLessons = courses.reduce(
+      (total, course) =>
+        total + (Array.isArray(course.lessons) ? course.lessons.length : 0),
+      0
+    );
+
+    return {
+      totalCourses: courses.length,
+      publishedCourses,
+      draftCourses,
+      totalLessons,
+      publishedPercentage:
+        courses.length > 0
+          ? Math.round((publishedCourses / courses.length) * 100)
+          : 0,
     };
+  }, [courses]);
 
-    loadInstructorProfile();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
-
+  // =====================================
   // LOGOUT
+  // =====================================
+
   const handleLogout = async () => {
     const token = localStorage.getItem("token");
 
     try {
       if (token) {
+        // Matches the existing GET /logout route.
         await fetch(`${API_URL}/auth/logout`, {
-          method: "POST",
+          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         });
       }
-    } catch (error) {
-      console.error("Logout error:", error);
+    } catch (err) {
+      console.error("Logout error:", err);
     } finally {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
@@ -353,7 +293,41 @@ export default function InstructorPage() {
     .slice(0, 2)
     .toUpperCase();
 
+  const stats = [
+    {
+      title: "Total Courses",
+      value: statistics.totalCourses,
+      description: "Courses you have created",
+      icon: BookOpen,
+      color: "bg-blue-50 text-[#0A66EC]",
+    },
+    {
+      title: "Published Courses",
+      value: statistics.publishedCourses,
+      description: "Visible to students",
+      icon: CheckCircle2,
+      color: "bg-emerald-50 text-emerald-600",
+    },
+    {
+      title: "Draft Courses",
+      value: statistics.draftCourses,
+      description: "Not yet published",
+      icon: FileText,
+      color: "bg-amber-50 text-amber-600",
+    },
+    {
+      title: "Total Lessons",
+      value: statistics.totalLessons,
+      description: "Across all your courses",
+      icon: PlayCircle,
+      color: "bg-indigo-50 text-indigo-600",
+    },
+  ];
+
+  // =====================================
   // LOADING SCREEN
+  // =====================================
+
   if (profileLoading && !instructor) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -369,7 +343,23 @@ export default function InstructorPage() {
   }
 
   if (!instructor) {
-    return null;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="text-sm text-slate-500">
+            Unable to load your instructor profile.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => router.replace("/")}
+            className="mt-4 rounded-xl bg-[#0A66EC] px-5 py-3 text-sm font-bold text-white"
+          >
+            Return to Login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -409,6 +399,16 @@ export default function InstructorPage() {
 
           <button
             type="button"
+            onClick={() => void loadDashboard()}
+            className="rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:bg-slate-50"
+            aria-label="Refresh dashboard"
+            title="Refresh dashboard"
+          >
+            <RefreshCw size={16} />
+          </button>
+
+          <button
+            type="button"
             onClick={handleLogout}
             className="rounded-xl border border-red-100 px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50"
           >
@@ -425,7 +425,6 @@ export default function InstructorPage() {
         className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0A66EC] via-[#227BEA] to-[#5B99F6] p-6 text-white sm:p-8"
       >
         <div className="relative z-10 max-w-[650px]">
-
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">
             Instructor Workspace
           </p>
@@ -463,9 +462,9 @@ export default function InstructorPage() {
           </h2>
 
           <p className="mt-3 max-w-lg text-sm leading-6 text-blue-50">
-            Manage your courses, track your students, monitor your earnings,
-            and continue sharing your knowledge with the Decent Learning
-            community.
+            Manage your courses, organize your lessons, publish
+            learning programmes and share your knowledge with
+            the Decent Learning community.
           </p>
 
           <Link
@@ -489,6 +488,24 @@ export default function InstructorPage() {
         />
       </motion.section>
 
+      {/* ERROR MESSAGE */}
+      {error && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50 p-4">
+          <div className="flex items-center gap-2 text-sm text-red-600">
+            <AlertCircle size={18} />
+            {error}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void loadDashboard()}
+            className="text-xs font-bold text-red-700 underline"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {/* STATISTICS */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         {stats.map((stat, index) => {
@@ -508,14 +525,6 @@ export default function InstructorPage() {
                 >
                   <Icon size={22} />
                 </div>
-
-                <button
-                  type="button"
-                  aria-label={`More options for ${stat.title}`}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50"
-                >
-                  <MoreHorizontal size={20} />
-                </button>
               </div>
 
               <p className="mt-5 text-xs font-medium text-slate-500">
@@ -523,173 +532,169 @@ export default function InstructorPage() {
               </p>
 
               <h3 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
-                {stat.value}
+                {coursesLoading ? "..." : stat.value}
               </h3>
 
-              <p className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
-                <TrendingUp size={13} />
-                {stat.change}
+              <p className="mt-2 text-[11px] font-medium text-slate-400">
+                {stat.description}
               </p>
             </motion.div>
           );
         })}
       </section>
 
-      {/* CHART AND QUICK ACTIONS */}
+      {/* COURSE OVERVIEW AND QUICK ACTIONS */}
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
 
-        {/* EARNINGS CHART */}
+        {/* COURSE OVERVIEW */}
         <div className="min-w-0 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-extrabold text-slate-900">
-                Earnings Overview
+                Course Overview
               </h2>
 
               <p className="mt-1 text-xs text-slate-400">
-                Track your course revenue throughout the year
+                Your actual course publishing progress
               </p>
             </div>
 
-            <select
-              defaultValue="This year"
-              className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 outline-none"
-            >
-              <option>This year</option>
-              <option>This month</option>
-              <option>This week</option>
-            </select>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs text-slate-400">
-                Total earnings
-              </p>
-
-              <h3 className="mt-1 text-3xl font-extrabold text-slate-900">
-                ₦485,000
-              </h3>
-            </div>
-
-            <span className="flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-600">
-              <TrendingUp size={14} />
-              8.5%
+            <span className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-[#0A66EC]">
+              {statistics.publishedPercentage}% published
             </span>
           </div>
 
-          <EarningsChart />
+          <div className="mt-8">
+            <div className="mb-3 flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-600">
+                Published courses
+              </span>
+
+              <span className="font-bold text-slate-900">
+                {coursesLoading
+                  ? "..."
+                  : `${statistics.publishedCourses} / ${statistics.totalCourses}`}
+              </span>
+            </div>
+
+            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-[#0A66EC] transition-all duration-500"
+                style={{
+                  width: `${statistics.publishedPercentage}%`,
+                }}
+              />
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-4">
+              <div className="rounded-xl bg-emerald-50 p-4">
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <CheckCircle2 size={17} />
+                  <span className="text-xs font-bold">
+                    Published
+                  </span>
+                </div>
+
+                <p className="mt-3 text-2xl font-extrabold text-slate-900">
+                  {coursesLoading ? "..." : statistics.publishedCourses}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-amber-50 p-4">
+                <div className="flex items-center gap-2 text-amber-600">
+                  <FileText size={17} />
+                  <span className="text-xs font-bold">
+                    Drafts
+                  </span>
+                </div>
+
+                <p className="mt-3 text-2xl font-extrabold text-slate-900">
+                  {coursesLoading ? "..." : statistics.draftCourses}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* QUICK ACTIONS */}
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-extrabold text-slate-900">
-              Quick Actions
-            </h2>
+        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-extrabold text-slate-900">
+            Quick Actions
+          </h2>
 
-            <p className="mt-1 text-xs text-slate-400">
-              Manage your teaching activities
-            </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Manage your teaching activities
+          </p>
 
-            <div className="mt-5 space-y-3">
-              <Link
-                href="/instructor/courses/create"
-                className="flex items-center justify-between rounded-xl bg-blue-50 p-4 transition hover:bg-blue-100"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-[#0A66EC] p-2 text-white">
-                    <Plus size={18} />
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">
-                      Create a Course
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      Publish a new learning programme
-                    </p>
-                  </div>
+          <div className="mt-5 space-y-3">
+            <Link
+              href="/instructor/courses/create"
+              className="flex items-center justify-between rounded-xl bg-blue-50 p-4 transition hover:bg-blue-100"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-[#0A66EC] p-2 text-white">
+                  <Plus size={18} />
                 </div>
 
-                <ChevronRight size={18} className="text-[#0A66EC]" />
-              </Link>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    Create a Course
+                  </p>
 
-              <Link
-                href="/instructor/courses"
-                className="flex items-center justify-between rounded-xl border border-slate-100 p-4 transition hover:bg-slate-50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
-                    <BookOpen size={18} />
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">
-                      Manage Courses
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      View and update your courses
-                    </p>
-                  </div>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Create a new learning programme
+                  </p>
                 </div>
-
-                <ChevronRight size={18} className="text-slate-400" />
-              </Link>
-
-              <Link
-                href="/instructor/analytics"
-                className="flex items-center justify-between rounded-xl border border-slate-100 p-4 transition hover:bg-slate-50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
-                    <ChartNoAxesCombined size={18} />
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">
-                      View Analytics
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      Monitor your performance
-                    </p>
-                  </div>
-                </div>
-
-                <ChevronRight size={18} className="text-slate-400" />
-              </Link>
-            </div>
-          </div>
-
-          {/* COURSE SUMMARY */}
-          <div className="rounded-2xl bg-[#185EC1] p-5 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-blue-100">
-                  Course performance
-                </p>
-
-                <h3 className="mt-2 text-2xl font-extrabold">
-                  86% <span className="text-sm font-medium">average</span>
-                </h3>
               </div>
 
-              <div className="rounded-xl bg-white/15 p-3">
-                <CheckCircle2 size={25} />
+              <ChevronRight size={18} className="text-[#0A66EC]" />
+            </Link>
+
+            <Link
+              href="/instructor/courses"
+              className="flex items-center justify-between rounded-xl border border-slate-100 p-4 transition hover:bg-slate-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
+                  <BookOpen size={18} />
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    Manage Courses
+                  </p>
+
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    View and update your courses
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/20">
-              <div className="h-full w-[86%] rounded-full bg-white" />
-            </div>
+              <ChevronRight size={18} className="text-slate-400" />
+            </Link>
 
-            <p className="mt-3 text-[11px] leading-5 text-blue-100">
-              Your courses are performing well. Keep creating valuable
-              content for your students.
-            </p>
+            <Link
+              href="/instructor/students"
+              className="flex items-center justify-between rounded-xl border border-slate-100 p-4 transition hover:bg-slate-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+                  <Users size={18} />
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    Student Area
+                  </p>
+
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Open your student management page
+                  </p>
+                </div>
+              </div>
+
+              <ChevronRight size={18} className="text-slate-400" />
+            </Link>
           </div>
         </div>
       </section>
@@ -703,7 +708,7 @@ export default function InstructorPage() {
             </h2>
 
             <p className="mt-1 text-xs text-slate-400">
-              Manage and monitor your published courses
+              Courses created by your instructor account
             </p>
           </div>
 
@@ -716,168 +721,167 @@ export default function InstructorPage() {
           </Link>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
-          {courses.map((course, index) => (
-            <motion.article
-              key={course.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="group overflow-hidden rounded-xl border border-slate-100 transition hover:-translate-y-1 hover:shadow-lg"
+        {coursesLoading ? (
+          <div className="flex min-h-40 items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-blue-100 border-t-[#0A66EC]" />
+
+              <p className="mt-3 text-xs text-slate-400">
+                Loading your courses...
+              </p>
+            </div>
+          </div>
+        ) : courses.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 px-5 py-12 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#0A66EC]">
+              <GraduationCap size={27} />
+            </div>
+
+            <h3 className="mt-4 text-sm font-extrabold text-slate-900">
+              No courses yet
+            </h3>
+
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
+              You haven't created any courses yet. Start by
+              creating your first learning programme.
+            </p>
+
+            <Link
+              href="/instructor/courses/create"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0A66EC] px-5 py-3 text-xs font-bold text-white transition hover:bg-[#185EC1]"
             >
-              <div className="relative h-44 overflow-hidden bg-slate-100">
-                <img
-                  src={course.image}
-                  alt={course.title}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                />
-
-                <span className="absolute left-3 top-3 rounded-md bg-white px-2.5 py-1.5 text-[9px] font-extrabold tracking-wide text-[#0A66EC]">
-                  {course.category}
-                </span>
-
-                <span className="absolute right-3 top-3 rounded-md bg-emerald-50 px-2.5 py-1.5 text-[9px] font-bold text-emerald-600">
-                  {course.status}
-                </span>
-              </div>
-
-              <div className="p-4">
-                <h3 className="min-h-[42px] text-sm font-extrabold leading-5 text-slate-900">
-                  {course.title}
-                </h3>
-
-                <div className="mt-4 flex items-center justify-between text-[11px] text-slate-500">
-                  <span className="flex items-center gap-1.5">
-                    <Users size={14} />
-                    {course.students} students
-                  </span>
-
-                  <span className="flex items-center gap-1.5">
-                    <PlayCircle size={14} />
-                    {course.lessons} lessons
-                  </span>
-                </div>
-
-                <div className="mt-4">
-                  <div className="mb-2 flex justify-between text-[10px] font-semibold">
-                    <span className="text-slate-400">
-                      Course completion
-                    </span>
-
-                    <span className="text-[#0A66EC]">
-                      {course.progress}%
-                    </span>
-                  </div>
-
-                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-[#0A66EC]"
-                      style={{ width: `${course.progress}%` }}
+              <Plus size={16} />
+              Create Your First Course
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+            {courses.slice(0, 6).map((course, index) => (
+              <motion.article
+                key={course._id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.08 }}
+                className="group overflow-hidden rounded-xl border border-slate-100 transition hover:-translate-y-1 hover:shadow-lg"
+              >
+                <div className="relative h-44 overflow-hidden bg-slate-100">
+                  {course.image ? (
+                    <img
+                      src={course.image}
+                      alt={course.title}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
-                  </div>
-                </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 text-[#0A66EC]">
+                      <BookOpen size={45} strokeWidth={1.3} />
+                    </div>
+                  )}
 
-                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
-                  <div>
-                    <p className="text-[10px] text-slate-400">
-                      Total earnings
-                    </p>
+                  <span className="absolute left-3 top-3 rounded-md bg-white px-2.5 py-1.5 text-[9px] font-extrabold tracking-wide text-[#0A66EC]">
+                    {course.category || "GENERAL"}
+                  </span>
 
-                    <p className="mt-1 text-sm font-extrabold text-slate-900">
-                      {course.earnings}
-                    </p>
-                  </div>
-
-                  <Link
-                    href={`/instructor/courses/${course.id}/edit`}
-                    className="rounded-lg bg-blue-50 px-3 py-2 text-[10px] font-bold text-[#0A66EC] transition hover:bg-blue-100"
+                  <span
+                    className={`absolute right-3 top-3 rounded-md px-2.5 py-1.5 text-[9px] font-bold ${
+                      course.isPublished
+                        ? "bg-emerald-50 text-emerald-600"
+                        : "bg-amber-50 text-amber-600"
+                    }`}
                   >
-                    Manage Course
-                  </Link>
+                    {course.isPublished ? "Published" : "Draft"}
+                  </span>
                 </div>
-              </div>
-            </motion.article>
-          ))}
-        </div>
+
+                <div className="p-4">
+                  <h3 className="min-h-[42px] text-sm font-extrabold leading-5 text-slate-900">
+                    {course.title}
+                  </h3>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <PlayCircle size={14} />
+                      {course.lessons?.length ?? 0} lessons
+                    </span>
+
+                    <span className="flex items-center gap-1.5">
+                      <Clock3 size={14} />
+                      {course.duration || "Self-paced"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>{course.level || "Beginner"}</span>
+                    <span>{formatDate(course.createdAt)}</span>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+                    <div>
+                      <p className="text-[10px] text-slate-400">
+                        Course status
+                      </p>
+
+                      <p
+                        className={`mt-1 text-xs font-extrabold ${
+                          course.isPublished
+                            ? "text-emerald-600"
+                            : "text-amber-600"
+                        }`}
+                      >
+                        {course.isPublished
+                          ? "Live for students"
+                          : "Unpublished draft"}
+                      </p>
+                    </div>
+
+                    <Link
+                      href={`/instructor/courses/${course._id}/edit`}
+                      className="rounded-lg bg-blue-50 px-3 py-2 text-[10px] font-bold text-[#0A66EC] transition hover:bg-blue-100"
+                    >
+                      Manage Course
+                    </Link>
+                  </div>
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        )}
+
+        {!coursesLoading && courses.length > 6 && (
+          <div className="mt-6 text-center">
+            <Link
+              href="/instructor/courses"
+              className="inline-flex items-center gap-2 rounded-xl border border-blue-100 px-5 py-3 text-xs font-bold text-[#0A66EC] transition hover:bg-blue-50"
+            >
+              View all {courses.length} courses
+              <ArrowUpRight size={15} />
+            </Link>
+          </div>
+        )}
       </section>
 
-      {/* RECENT ENROLLMENTS */}
+      {/* NOT YET CONNECTED */}
       <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-extrabold text-slate-900">
-              Recent Enrollments
-            </h2>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Students who recently joined your courses
-            </p>
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-blue-50 p-3 text-[#0A66EC]">
+            <Users size={22} />
           </div>
 
-          <Link
-            href="/instructor/students"
-            className="flex items-center gap-1 text-xs font-bold text-[#0A66EC] hover:underline"
-          >
-            View All Students
-            <ChevronRight size={15} />
-          </Link>
-        </div>
+          <div>
+            <h2 className="text-base font-extrabold text-slate-900">
+              Student Enrollments
+            </h2>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-left">
-            <thead>
-              <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                <th className="pb-4">Student</th>
-                <th className="pb-4">Course</th>
-                <th className="pb-4">Enrollment Date</th>
-                <th className="pb-4">Status</th>
-              </tr>
-            </thead>
+            <p className="mt-2 max-w-2xl text-xs leading-6 text-slate-500">
+              Your course information is connected. Student
+              enrollment records will appear here after we
+              connect the enrollment system to your backend.
+              We won't display sample student records as real data.
+            </p>
 
-            <tbody>
-              {enrollments.map((student) => (
-                <tr
-                  key={student.email}
-                  className="border-b border-slate-50 last:border-0"
-                >
-                  <td className="py-4">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-extrabold ${student.color}`}
-                      >
-                        {student.initials}
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-bold text-slate-800">
-                          {student.name}
-                        </p>
-
-                        <p className="mt-1 text-[10px] text-slate-400">
-                          {student.email}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-4 text-xs font-semibold text-slate-600">
-                    {student.course}
-                  </td>
-
-                  <td className="py-4 text-xs text-slate-500">
-                    {student.date}
-                  </td>
-
-                  <td className="py-4">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-emerald-600">
-                      <CheckCircle2 size={12} />
-                      Enrolled
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <span className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-600">
+              Enrollment API not connected yet
+            </span>
+          </div>
         </div>
       </section>
     </div>
