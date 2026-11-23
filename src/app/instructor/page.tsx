@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -19,11 +19,22 @@ import {
   RefreshCw,
   AlertCircle,
   GraduationCap,
+  LayoutDashboard,
+  LogOut,
+  BookMarked,
 } from "lucide-react";
+
+// =====================================
+// API CONFIGURATION
+// =====================================
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://database-dlearning.onrender.com/api";
+
+// =====================================
+// TYPES
+// =====================================
 
 type InstructorProfile = {
   id?: string;
@@ -37,15 +48,17 @@ type InstructorProfile = {
 
 type Course = {
   _id: string;
+  id?: string;
   title: string;
   slug: string;
   description?: string;
-  category: string;
-  level: string;
+  category?: string;
+  level?: string;
   image?: string;
   instructor?: string;
   duration?: string;
   lessons?: {
+    _id?: string;
     title: string;
     description?: string;
     videoUrl?: string;
@@ -56,13 +69,18 @@ type Course = {
 };
 
 type ApiResponse<T> = {
-  success: boolean;
+  success?: boolean;
   message?: string;
   data?: T;
   user?: T;
   profile?: T;
+  courses?: T;
   count?: number;
 };
+
+// =====================================
+// HELPERS
+// =====================================
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error
@@ -86,6 +104,20 @@ function formatDate(date?: string): string {
   });
 }
 
+async function getApiResponse<T>(
+  response: Response
+): Promise<ApiResponse<T>> {
+  try {
+    return await response.json();
+  } catch {
+    throw new Error("The server returned an invalid response.");
+  }
+}
+
+// =====================================
+// INSTRUCTOR DASHBOARD
+// =====================================
+
 export default function InstructorPage() {
   const router = useRouter();
 
@@ -93,11 +125,17 @@ export default function InstructorPage() {
     useState<InstructorProfile | null>(null);
 
   const [courses, setCourses] = useState<Course[]>([]);
+
   const [profileLoading, setProfileLoading] = useState(true);
   const [coursesLoading, setCoursesLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const loadDashboard = async () => {
+  // =====================================
+  // LOAD DASHBOARD DATA
+  // =====================================
+
+  const loadDashboard = useCallback(async () => {
     const token = localStorage.getItem("token");
 
     if (!token) {
@@ -111,7 +149,7 @@ export default function InstructorPage() {
 
     try {
       // =====================================
-      // LOAD REAL INSTRUCTOR PROFILE
+      // GET INSTRUCTOR PROFILE
       // =====================================
 
       const profileResponse = await fetch(
@@ -126,8 +164,8 @@ export default function InstructorPage() {
         }
       );
 
-      const profileResult: ApiResponse<InstructorProfile> =
-        await profileResponse.json();
+      const profileResult =
+        await getApiResponse<InstructorProfile>(profileResponse);
 
       if (
         profileResponse.status === 401 ||
@@ -139,7 +177,7 @@ export default function InstructorPage() {
         return;
       }
 
-      if (!profileResponse.ok || !profileResult.success) {
+      if (!profileResponse.ok || profileResult.success === false) {
         throw new Error(
           profileResult.message || "Unable to load your profile."
         );
@@ -158,11 +196,13 @@ export default function InstructorPage() {
       }
 
       setInstructor(profile);
+
       localStorage.setItem("user", JSON.stringify(profile));
+
       setProfileLoading(false);
 
       // =====================================
-      // LOAD ONLY THIS INSTRUCTOR'S COURSES
+      // GET THIS INSTRUCTOR'S COURSES
       // =====================================
 
       const coursesResponse = await fetch(
@@ -177,8 +217,8 @@ export default function InstructorPage() {
         }
       );
 
-      const coursesResult: ApiResponse<Course[]> =
-        await coursesResponse.json();
+      const coursesResult =
+        await getApiResponse<Course[]>(coursesResponse);
 
       if (
         coursesResponse.status === 401 ||
@@ -190,34 +230,71 @@ export default function InstructorPage() {
         return;
       }
 
-      if (!coursesResponse.ok || !coursesResult.success) {
+      if (!coursesResponse.ok || coursesResult.success === false) {
         throw new Error(
           coursesResult.message || "Unable to load your courses."
         );
       }
 
-      setCourses(
-        Array.isArray(coursesResult.data)
-          ? coursesResult.data
-          : []
-      );
+      const courseData =
+        coursesResult.data ?? coursesResult.courses;
+
+      setCourses(Array.isArray(courseData) ? courseData : []);
+
     } catch (err) {
       console.error("Instructor dashboard error:", err);
       setError(getErrorMessage(err));
     } finally {
       setProfileLoading(false);
       setCoursesLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [router]);
+
+  // =====================================
+  // INITIAL LOAD
+  // =====================================
 
   useEffect(() => {
     void loadDashboard();
-    // loadDashboard is intentionally called once when the page mounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadDashboard]);
 
   // =====================================
-  // REAL COURSE STATISTICS
+  // REFRESH
+  // =====================================
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    void loadDashboard();
+  };
+
+  // =====================================
+  // LOGOUT
+  // =====================================
+
+  const handleLogout = async () => {
+    const token = localStorage.getItem("token");
+
+    try {
+      if (token) {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      router.replace("/");
+    }
+  };
+
+  // =====================================
+  // COURSE STATISTICS
   // =====================================
 
   const statistics = useMemo(() => {
@@ -231,7 +308,10 @@ export default function InstructorPage() {
 
     const totalLessons = courses.reduce(
       (total, course) =>
-        total + (Array.isArray(course.lessons) ? course.lessons.length : 0),
+        total +
+        (Array.isArray(course.lessons)
+          ? course.lessons.length
+          : 0),
       0
     );
 
@@ -242,37 +322,16 @@ export default function InstructorPage() {
       totalLessons,
       publishedPercentage:
         courses.length > 0
-          ? Math.round((publishedCourses / courses.length) * 100)
+          ? Math.round(
+              (publishedCourses / courses.length) * 100
+            )
           : 0,
     };
   }, [courses]);
 
   // =====================================
-  // LOGOUT
+  // INSTRUCTOR DETAILS
   // =====================================
-
-  const handleLogout = async () => {
-    const token = localStorage.getItem("token");
-
-    try {
-      if (token) {
-        // Matches the existing GET /logout route.
-        await fetch(`${API_URL}/auth/logout`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-      }
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      router.replace("/");
-    }
-  };
 
   const instructorName =
     instructor?.fullName?.trim() || "Instructor";
@@ -285,6 +344,10 @@ export default function InstructorPage() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  // =====================================
+  // STATISTICS CARDS
+  // =====================================
 
   const stats = [
     {
@@ -335,18 +398,30 @@ export default function InstructorPage() {
     );
   }
 
+  // =====================================
+  // PROFILE ERROR
+  // =====================================
+
   if (!instructor) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <p className="text-sm text-slate-500">
-            Unable to load your instructor profile.
+      <div className="flex min-h-[60vh] items-center justify-center p-5">
+        <div className="max-w-md text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
+            <AlertCircle size={30} />
+          </div>
+
+          <h2 className="mt-5 text-lg font-extrabold text-slate-900">
+            Unable to load your profile
+          </h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            {error || "Please log in with your instructor account."}
           </p>
 
           <button
             type="button"
             onClick={() => router.replace("/")}
-            className="mt-4 rounded-xl bg-[#0A66EC] px-5 py-3 text-sm font-bold text-white"
+            className="mt-5 rounded-xl bg-[#0A66EC] px-6 py-3 text-sm font-bold text-white"
           >
             Return to Login
           </button>
@@ -355,11 +430,19 @@ export default function InstructorPage() {
     );
   }
 
+  // =====================================
+  // DASHBOARD UI
+  // =====================================
+
   return (
     <div className="mx-auto max-w-[1500px] space-y-7">
 
-      {/* TOP PROFILE BAR */}
+      {/* =====================================
+          TOP PROFILE BAR
+      ===================================== */}
+
       <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+
         <div className="flex items-center gap-3">
           {instructor.profilePicture ? (
             <img
@@ -385,6 +468,7 @@ export default function InstructorPage() {
         </div>
 
         <div className="flex items-center gap-3">
+
           <span className="hidden items-center gap-1.5 rounded-full bg-blue-50 px-3 py-2 text-xs font-semibold text-[#0A66EC] sm:flex">
             <ShieldCheck size={15} />
             Instructor
@@ -392,25 +476,34 @@ export default function InstructorPage() {
 
           <button
             type="button"
-            onClick={() => void loadDashboard()}
-            className="rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:bg-slate-50"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
             aria-label="Refresh dashboard"
             title="Refresh dashboard"
           >
-            <RefreshCw size={16} />
+            <RefreshCw
+              size={16}
+              className={refreshing ? "animate-spin" : ""}
+            />
           </button>
 
           <button
             type="button"
             onClick={handleLogout}
-            className="rounded-xl border border-red-100 px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50"
+            className="flex items-center gap-2 rounded-xl border border-red-100 px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50"
           >
+            <LogOut size={15} />
             Log Out
           </button>
+
         </div>
       </section>
 
-      {/* WELCOME SECTION */}
+      {/* =====================================
+          WELCOME SECTION
+      ===================================== */}
+
       <motion.section
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -418,11 +511,13 @@ export default function InstructorPage() {
         className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0A66EC] via-[#227BEA] to-[#5B99F6] p-6 text-white sm:p-8"
       >
         <div className="relative z-10 max-w-[650px]">
+
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">
             Instructor Workspace
           </p>
 
           <div className="mb-4 mt-5 flex items-center gap-3">
+
             {instructor.profilePicture ? (
               <img
                 src={instructor.profilePicture}
@@ -468,6 +563,7 @@ export default function InstructorPage() {
             Create New Course
             <ArrowUpRight size={16} />
           </Link>
+
         </div>
 
         <div className="absolute -right-12 -top-16 h-64 w-64 rounded-full border-[35px] border-white/10" />
@@ -481,9 +577,13 @@ export default function InstructorPage() {
         />
       </motion.section>
 
-      {/* ERROR MESSAGE */}
+      {/* =====================================
+          ERROR MESSAGE
+      ===================================== */}
+
       {error && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50 p-4">
+
           <div className="flex items-center gap-2 text-sm text-red-600">
             <AlertCircle size={18} />
             {error}
@@ -491,16 +591,21 @@ export default function InstructorPage() {
 
           <button
             type="button"
-            onClick={() => void loadDashboard()}
+            onClick={handleRefresh}
             className="text-xs font-bold text-red-700 underline"
           >
             Try again
           </button>
+
         </div>
       )}
 
-      {/* STATISTICS */}
+      {/* =====================================
+          STATISTICS
+      ===================================== */}
+
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+
         {stats.map((stat, index) => {
           const Icon = stat.icon;
 
@@ -534,14 +639,21 @@ export default function InstructorPage() {
             </motion.div>
           );
         })}
+
       </section>
 
-      {/* COURSE OVERVIEW AND QUICK ACTIONS */}
+      {/* =====================================
+          COURSE OVERVIEW AND QUICK ACTIONS
+      ===================================== */}
+
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
 
         {/* COURSE OVERVIEW */}
+
         <div className="min-w-0 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+
           <div className="flex flex-wrap items-center justify-between gap-4">
+
             <div>
               <h2 className="text-base font-extrabold text-slate-900">
                 Course Overview
@@ -553,12 +665,17 @@ export default function InstructorPage() {
             </div>
 
             <span className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-[#0A66EC]">
-              {statistics.publishedPercentage}% published
+              {coursesLoading
+                ? "..."
+                : `${statistics.publishedPercentage}% published`}
             </span>
+
           </div>
 
           <div className="mt-8">
+
             <div className="mb-3 flex items-center justify-between text-xs">
+
               <span className="font-semibold text-slate-600">
                 Published courses
               </span>
@@ -568,21 +685,27 @@ export default function InstructorPage() {
                   ? "..."
                   : `${statistics.publishedCourses} / ${statistics.totalCourses}`}
               </span>
+
             </div>
 
             <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+
               <div
                 className="h-full rounded-full bg-[#0A66EC] transition-all duration-500"
                 style={{
                   width: `${statistics.publishedPercentage}%`,
                 }}
               />
+
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-4">
+
               <div className="rounded-xl bg-emerald-50 p-4">
+
                 <div className="flex items-center gap-2 text-emerald-600">
                   <CheckCircle2 size={17} />
+
                   <span className="text-xs font-bold">
                     Published
                   </span>
@@ -591,11 +714,14 @@ export default function InstructorPage() {
                 <p className="mt-3 text-2xl font-extrabold text-slate-900">
                   {coursesLoading ? "..." : statistics.publishedCourses}
                 </p>
+
               </div>
 
               <div className="rounded-xl bg-amber-50 p-4">
+
                 <div className="flex items-center gap-2 text-amber-600">
                   <FileText size={17} />
+
                   <span className="text-xs font-bold">
                     Drafts
                   </span>
@@ -604,13 +730,18 @@ export default function InstructorPage() {
                 <p className="mt-3 text-2xl font-extrabold text-slate-900">
                   {coursesLoading ? "..." : statistics.draftCourses}
                 </p>
+
               </div>
+
             </div>
+
           </div>
         </div>
 
         {/* QUICK ACTIONS */}
+
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+
           <h2 className="text-base font-extrabold text-slate-900">
             Quick Actions
           </h2>
@@ -620,11 +751,13 @@ export default function InstructorPage() {
           </p>
 
           <div className="mt-5 space-y-3">
+
             <Link
               href="/instructor/courses/create"
               className="flex items-center justify-between rounded-xl bg-blue-50 p-4 transition hover:bg-blue-100"
             >
               <div className="flex items-center gap-3">
+
                 <div className="rounded-lg bg-[#0A66EC] p-2 text-white">
                   <Plus size={18} />
                 </div>
@@ -638,6 +771,7 @@ export default function InstructorPage() {
                     Create a new learning programme
                   </p>
                 </div>
+
               </div>
 
               <ChevronRight size={18} className="text-[#0A66EC]" />
@@ -648,6 +782,7 @@ export default function InstructorPage() {
               className="flex items-center justify-between rounded-xl border border-slate-100 p-4 transition hover:bg-slate-50"
             >
               <div className="flex items-center gap-3">
+
                 <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
                   <BookOpen size={18} />
                 </div>
@@ -661,6 +796,7 @@ export default function InstructorPage() {
                     View and update your courses
                   </p>
                 </div>
+
               </div>
 
               <ChevronRight size={18} className="text-slate-400" />
@@ -671,30 +807,39 @@ export default function InstructorPage() {
               className="flex items-center justify-between rounded-xl border border-slate-100 p-4 transition hover:bg-slate-50"
             >
               <div className="flex items-center gap-3">
+
                 <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
                   <Users size={18} />
                 </div>
 
                 <div>
                   <p className="text-xs font-bold text-slate-800">
-                    Student Area
+                    Manage Students
                   </p>
 
                   <p className="mt-1 text-[10px] text-slate-500">
-                    Open your student management page
+                    View and manage enrolled students
                   </p>
                 </div>
+
               </div>
 
               <ChevronRight size={18} className="text-slate-400" />
             </Link>
+
           </div>
         </div>
+
       </section>
 
-      {/* MY COURSES */}
+      {/* =====================================
+          MY COURSES
+      ===================================== */}
+
       <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+
           <div>
             <h2 className="text-base font-extrabold text-slate-900">
               My Courses
@@ -712,23 +857,93 @@ export default function InstructorPage() {
             View All Courses
             <ChevronRight size={15} />
           </Link>
+
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
-          {courses.map((course, index) => (
-            <motion.article
-              key={course.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="group overflow-hidden rounded-xl border border-slate-100 transition hover:-translate-y-1 hover:shadow-lg"
+        {/* COURSE LOADING */}
+
+        {coursesLoading && (
+          <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+
+            {[1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="animate-pulse overflow-hidden rounded-xl border border-slate-100"
+              >
+                <div className="h-44 bg-slate-100" />
+
+                <div className="space-y-3 p-4">
+                  <div className="h-4 w-3/4 rounded bg-slate-100" />
+                  <div className="h-3 w-1/2 rounded bg-slate-100" />
+                  <div className="h-8 rounded bg-slate-100" />
+                </div>
+              </div>
+            ))}
+
+          </div>
+        )}
+
+        {/* EMPTY COURSES */}
+
+        {!coursesLoading && courses.length === 0 && (
+
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
+
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#0A66EC]">
+              <GraduationCap size={32} />
+            </div>
+
+            <h3 className="mt-5 text-base font-extrabold text-slate-900">
+              No courses created yet
+            </h3>
+
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
+              You haven't created any courses. Start creating your
+              first course and share your knowledge with students.
+            </p>
+
+            <Link
+              href="/instructor/courses/create"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0A66EC] px-5 py-3 text-xs font-bold text-white transition hover:bg-[#185EC1]"
             >
-              <div className="relative h-44 overflow-hidden bg-slate-100">
-                <img
-                  src={course.image}
-                  alt={course.title}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                />
+              <Plus size={16} />
+              Create Your First Course
+            </Link>
+
+          </div>
+        )}
+
+        {/* COURSE CARDS */}
+
+        {!coursesLoading && courses.length > 0 && (
+
+          <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+
+            {courses.slice(0, 6).map((course, index) => (
+
+              <motion.article
+                key={course._id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="group overflow-hidden rounded-xl border border-slate-100 transition hover:-translate-y-1 hover:shadow-lg"
+              >
+
+                {/* COURSE IMAGE */}
+
+                <div className="relative h-44 overflow-hidden bg-slate-100">
+
+                  {course.image ? (
+                    <img
+                      src={course.image}
+                      alt={course.title}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 text-[#0A66EC]">
+                      <BookOpen size={48} strokeWidth={1.3} />
+                    </div>
+                  )}
 
                   <span className="absolute left-3 top-3 rounded-md bg-white px-2.5 py-1.5 text-[9px] font-extrabold tracking-wide text-[#0A66EC]">
                     {course.category || "GENERAL"}
@@ -743,14 +958,23 @@ export default function InstructorPage() {
                   >
                     {course.isPublished ? "Published" : "Draft"}
                   </span>
+
                 </div>
 
+                {/* COURSE DETAILS */}
+
                 <div className="p-4">
+
                   <h3 className="min-h-[42px] text-sm font-extrabold leading-5 text-slate-900">
                     {course.title}
                   </h3>
 
+                  <p className="mt-2 line-clamp-2 min-h-9 text-[11px] leading-5 text-slate-500">
+                    {course.description || "No course description added yet."}
+                  </p>
+
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+
                     <span className="flex items-center gap-1.5">
                       <PlayCircle size={14} />
                       {course.lessons?.length ?? 0} lessons
@@ -760,14 +984,21 @@ export default function InstructorPage() {
                       <Clock3 size={14} />
                       {course.duration || "Self-paced"}
                     </span>
+
                   </div>
 
                   <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400">
+
                     <span>{course.level || "Beginner"}</span>
+
                     <span>{formatDate(course.createdAt)}</span>
+
                   </div>
 
+                  {/* COURSE STATUS */}
+
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+
                     <div>
                       <p className="text-[10px] text-slate-400">
                         Course status
@@ -792,15 +1023,25 @@ export default function InstructorPage() {
                     >
                       Manage Course
                     </Link>
+
                   </div>
+
                 </div>
+
               </motion.article>
+
             ))}
+
           </div>
+
         )}
 
+        {/* VIEW ALL */}
+
         {!coursesLoading && courses.length > 6 && (
+
           <div className="mt-6 text-center">
+
             <Link
               href="/instructor/courses"
               className="inline-flex items-center gap-2 rounded-xl border border-blue-100 px-5 py-3 text-xs font-bold text-[#0A66EC] transition hover:bg-blue-50"
@@ -808,49 +1049,89 @@ export default function InstructorPage() {
               View all {courses.length} courses
               <ArrowUpRight size={15} />
             </Link>
+
           </div>
+
         )}
+
       </section>
 
-      {/* NOT YET CONNECTED */}
+      {/* =====================================
+          STUDENT MANAGEMENT SECTION
+      ===================================== */}
+
       <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-blue-50 p-3 text-[#0A66EC]">
-            <Users size={22} />
+
+        <div className="flex flex-wrap items-center justify-between gap-4">
+
+          <div className="flex items-start gap-3">
+
+            <div className="rounded-xl bg-blue-50 p-3 text-[#0A66EC]">
+              <Users size={22} />
+            </div>
+
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900">
+                Student Management
+              </h2>
+
+              <p className="mt-1 max-w-md text-xs leading-5 text-slate-400">
+                Manage your students, monitor course enrolments
+                and keep track of their learning activities.
+              </p>
+            </div>
+
           </div>
 
-                      <div>
-                        <p className="text-xs font-bold text-slate-800">
-                          {student.name}
-                        </p>
+          <Link
+            href="/instructor/students"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0A66EC] px-5 py-3 text-xs font-bold text-white transition hover:bg-[#185EC1]"
+          >
+            <Users size={15} />
+            View Students
+            <ArrowUpRight size={15} />
+          </Link>
 
-                        <p className="mt-1 text-[10px] text-slate-400">
-                          {student.email}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-4 text-xs font-semibold text-slate-600">
-                    {student.course}
-                  </td>
-
-                  <td className="py-4 text-xs text-slate-500">
-                    {student.date}
-                  </td>
-
-                  <td className="py-4">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-emerald-600">
-                      <CheckCircle2 size={12} />
-                      Enrolled
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+
+          <div className="rounded-xl bg-blue-50 p-4">
+
+            <div className="flex items-center gap-2 text-[#0A66EC]">
+              <LayoutDashboard size={18} />
+
+              <span className="text-xs font-bold">
+                Course Dashboard
+              </span>
+            </div>
+
+            <p className="mt-2 text-[11px] leading-5 text-slate-500">
+              View your created courses and manage their content.
+            </p>
+
+          </div>
+
+          <div className="rounded-xl bg-indigo-50 p-4">
+
+            <div className="flex items-center gap-2 text-indigo-600">
+              <BookMarked size={18} />
+
+              <span className="text-xs font-bold">
+                Student Learning
+              </span>
+            </div>
+
+            <p className="mt-2 text-[11px] leading-5 text-slate-500">
+              Monitor enrolled students through your student management page.
+            </p>
+
+          </div>
+
+        </div>
+
       </section>
+
     </div>
   );
 }
