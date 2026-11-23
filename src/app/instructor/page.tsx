@@ -28,9 +28,15 @@ import {
 // API CONFIGURATION
 // =====================================
 
-const API_URL =
+const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://database-dlearning.onrender.com/api";
+  "https://database-dlearning.onrender.com";
+
+const CLEAN_API_BASE = API_BASE.replace(/\/+$/, "");
+
+const API_URL = CLEAN_API_BASE.endsWith("/api")
+  ? CLEAN_API_BASE
+  : `${CLEAN_API_BASE}/api`;
 
 // =====================================
 // TYPES
@@ -196,7 +202,6 @@ export default function InstructorPage() {
       }
 
       setInstructor(profile);
-
       localStorage.setItem("user", JSON.stringify(profile));
 
       setProfileLoading(false);
@@ -898,7 +903,7 @@ export default function InstructorPage() {
             </h3>
 
             <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
-              You haven't created any courses. Start creating your
+              You havent created any courses. Start creating your
               first course and share your knowledge with students.
             </p>
 
@@ -1017,8 +1022,10 @@ export default function InstructorPage() {
                       </p>
                     </div>
 
+                    {/* CORRECT EDIT ROUTE */}
+
                     <Link
-                      href={`/instructor/courses/${course._id}/edit`}
+                      href={`/instructor/courses/create/${course._id}/edit`}
                       className="rounded-lg bg-blue-50 px-3 py-2 text-[10px] font-bold text-[#0A66EC] transition hover:bg-blue-100"
                     >
                       Manage Course

@@ -2,13 +2,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   House,
   BookOpen,
   Users,
   ChartNoAxesCombined,
-  Mail,
   UserRound,
   Settings,
   LogOut,
@@ -38,11 +38,6 @@ const navigation = [
     href: "/instructor/analytics",
     icon: ChartNoAxesCombined,
   },
-  {
-    title: "Messages",
-    href: "/instructor/messages",
-    icon: Mail,
-  },
 ];
 
 const accountNavigation = [
@@ -63,11 +58,17 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-export default function Sidebar({
-  isOpen,
-  onClose,
-}: SidebarProps) {
+// =====================================
+// SIDEBAR CONTENT
+// =====================================
+
+function SidebarContent({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // =====================================
+  // ACTIVE NAVIGATION
+  // =====================================
 
   const isActive = (href: string) => {
     if (href === "/instructor") {
@@ -77,8 +78,22 @@ export default function Sidebar({
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
+  // =====================================
+  // LOGOUT
+  // =====================================
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    onClose();
+    router.replace("/");
+  };
+
   return (
     <>
+      {/* MOBILE OVERLAY */}
+
       {isOpen && (
         <button
           type="button"
@@ -88,12 +103,15 @@ export default function Sidebar({
         />
       )}
 
+      {/* SIDEBAR */}
+
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-slate-100 bg-white transition-transform duration-300 lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Logo */}
+        {/* LOGO */}
+
         <div className="flex h-[85px] items-center justify-between border-b border-slate-100 px-6">
           <Link
             href="/instructor"
@@ -125,7 +143,8 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Main navigation */}
+        {/* MAIN NAVIGATION */}
+
         <div className="flex-1 overflow-y-auto px-4 py-6">
           <p className="mb-4 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
             Workspace
@@ -159,7 +178,8 @@ export default function Sidebar({
             })}
           </nav>
 
-          {/* Create course */}
+          {/* CREATE COURSE */}
+
           <Link
             href="/instructor/courses/create"
             onClick={onClose}
@@ -169,7 +189,8 @@ export default function Sidebar({
             Create New Course
           </Link>
 
-          {/* Account */}
+          {/* ACCOUNT */}
+
           <p className="mb-4 mt-8 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
             Account
           </p>
@@ -192,23 +213,71 @@ export default function Sidebar({
                 >
                   <Icon size={19} />
                   {item.title}
+
+                  {active && (
+                    <span className="ml-auto h-2 w-2 rounded-full bg-[#0A66EC]" />
+                  )}
                 </Link>
               );
             })}
           </nav>
         </div>
 
-        {/* Sign out */}
+        {/* SIGN OUT */}
+
         <div className="border-t border-slate-100 p-4">
-          <Link
-            href="/login"
-            className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] font-semibold text-red-500 transition hover:bg-red-50"
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-[13px] font-semibold text-red-500 transition hover:bg-red-50"
           >
             <LogOut size={19} />
             Sign Out
-          </Link>
+          </button>
         </div>
       </aside>
     </>
+  );
+}
+
+// =====================================
+// SUSPENSE FALLBACK
+// =====================================
+
+function SidebarFallback({ isOpen }: SidebarProps) {
+  return (
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-slate-100 bg-white transition-transform duration-300 lg:translate-x-0 ${
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
+      <div className="flex h-[85px] items-center gap-3 border-b border-slate-100 px-6">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0A66EC] text-white">
+          <GraduationCap size={25} />
+        </div>
+
+        <div>
+          <h1 className="text-[15px] font-extrabold tracking-tight text-slate-900">
+            DECENT
+          </h1>
+
+          <p className="text-[10px] font-semibold tracking-[0.16em] text-[#0A66EC]">
+            LEARNING
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// =====================================
+// MAIN SIDEBAR WITH SUSPENSE
+// =====================================
+
+export default function Sidebar(props: SidebarProps) {
+  return (
+    <Suspense fallback={<SidebarFallback {...props} />}>
+      <SidebarContent {...props} />
+    </Suspense>
   );
 }
