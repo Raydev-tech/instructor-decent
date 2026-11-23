@@ -23,7 +23,7 @@ import {
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://backend-dlearning.onrender.com/api";
+  "https://database-dlearning.onrender.com/api";
 
 type InstructorProfile = {
   id?: string;
