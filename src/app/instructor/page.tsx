@@ -21,14 +21,9 @@ import {
   GraduationCap,
 } from "lucide-react";
 
-const API_BASE = (
+const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://database-dlearning.onrender.com"
-).replace(/\/+$/, "");
-
-const API_URL = API_BASE.endsWith("/api")
-  ? API_BASE
-  : `${API_BASE}/api`;
+  "https://backend-dlearning.onrender.com/api";
 
 type InstructorProfile = {
   id?: string;
@@ -719,61 +714,21 @@ export default function InstructorPage() {
           </Link>
         </div>
 
-        {coursesLoading ? (
-          <div className="flex min-h-40 items-center justify-center">
-            <div className="text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-blue-100 border-t-[#0A66EC]" />
-
-              <p className="mt-3 text-xs text-slate-400">
-                Loading your courses...
-              </p>
-            </div>
-          </div>
-        ) : courses.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 px-5 py-12 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#0A66EC]">
-              <GraduationCap size={27} />
-            </div>
-
-            <h3 className="mt-4 text-sm font-extrabold text-slate-900">
-              No courses yet
-            </h3>
-
-            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
-              You havent created any courses yet. Start by
-              creating your first learning programme.
-            </p>
-
-            <Link
-              href="/instructor/courses/create"
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0A66EC] px-5 py-3 text-xs font-bold text-white transition hover:bg-[#185EC1]"
+        <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+          {courses.map((course, index) => (
+            <motion.article
+              key={course.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="group overflow-hidden rounded-xl border border-slate-100 transition hover:-translate-y-1 hover:shadow-lg"
             >
-              <Plus size={16} />
-              Create Your First Course
-            </Link>
-          </div>
-        ) : (
-          <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
-            {courses.slice(0, 6).map((course, index) => (
-              <motion.article
-                key={course._id}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.08 }}
-                className="group overflow-hidden rounded-xl border border-slate-100 transition hover:-translate-y-1 hover:shadow-lg"
-              >
-                <div className="relative h-44 overflow-hidden bg-slate-100">
-                  {course.image ? (
-                    <img
-                      src={course.image}
-                      alt={course.title}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 text-[#0A66EC]">
-                      <BookOpen size={45} strokeWidth={1.3} />
-                    </div>
-                  )}
+              <div className="relative h-44 overflow-hidden bg-slate-100">
+                <img
+                  src={course.image}
+                  alt={course.title}
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                />
 
                   <span className="absolute left-3 top-3 rounded-md bg-white px-2.5 py-1.5 text-[9px] font-extrabold tracking-wide text-[#0A66EC]">
                     {course.category || "GENERAL"}
@@ -864,22 +819,36 @@ export default function InstructorPage() {
             <Users size={22} />
           </div>
 
-          <div>
-            <h2 className="text-base font-extrabold text-slate-900">
-              Student Enrollments
-            </h2>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          {student.name}
+                        </p>
 
-            <p className="mt-2 max-w-2xl text-xs leading-6 text-slate-500">
-              Your course information is connected. Student
-              enrollment records will appear here after we
-              connect the enrollment system to your backend.
-              We wont display sample student records as real data.
-            </p>
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          {student.email}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
 
-            <span className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-600">
-              Enrollment API not connected yet
-            </span>
-          </div>
+                  <td className="py-4 text-xs font-semibold text-slate-600">
+                    {student.course}
+                  </td>
+
+                  <td className="py-4 text-xs text-slate-500">
+                    {student.date}
+                  </td>
+
+                  <td className="py-4">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-emerald-600">
+                      <CheckCircle2 size={12} />
+                      Enrolled
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
     </div>
