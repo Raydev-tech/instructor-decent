@@ -31,7 +31,7 @@ type MessageType = "success" | "error";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://decent-learning-bacend.onrender.com/api";
+  "https://database-dlearning.onrender.com/api";
 
 export default function CreateCoursePage() {
   const router = useRouter();
@@ -225,7 +225,7 @@ export default function CreateCoursePage() {
       formData.append("duration", duration.trim());
 
       // Save as unpublished course initially
-      formData.append("isPublished", "false");
+      formData.append("isPublished", "true");
 
       // Course lessons
       const formattedLessons = lessons.map((lesson) => ({

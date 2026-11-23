@@ -18,7 +18,7 @@ import {
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://decent-learning-bacend.onrender.com";
+  "https://database-dlearning.onrender.com";
 
 export default function InstructorLoginPage() {
   const router = useRouter();

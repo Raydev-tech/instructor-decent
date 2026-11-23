@@ -21,11 +21,9 @@ import {
   GraduationCap,
 } from "lucide-react";
 
-// Set NEXT_PUBLIC_API_URL to your backend base URL,
-// without /api. Example: https://your-backend.onrender.com
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://decent-learning-bacend.onrender.com"
+  "https://database-dlearning.onrender.com"
 ).replace(/\/+$/, "");
 
 const API_URL = API_BASE.endsWith("/api")
@@ -742,7 +740,7 @@ export default function InstructorPage() {
             </h3>
 
             <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
-              You haven't created any courses yet. Start by
+              You havent created any courses yet. Start by
               creating your first learning programme.
             </p>
 
@@ -875,7 +873,7 @@ export default function InstructorPage() {
               Your course information is connected. Student
               enrollment records will appear here after we
               connect the enrollment system to your backend.
-              We won't display sample student records as real data.
+              We wont display sample student records as real data.
             </p>
 
             <span className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-600">
